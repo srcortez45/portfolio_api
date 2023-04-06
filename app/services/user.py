@@ -1,8 +1,5 @@
-from app.utils.settings import cnf
 from app.config.database import Client
 from app.services.google import ServiceManager
-
-import json
 
 class UserService():
     

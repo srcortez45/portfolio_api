@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class DBCloudConfig(BaseSettings):
-    
+    supabase_url:str = Field(env="url_supabase")
+    supabase_key:str = Field(env="key_supabase")
     api_key: str = Field(env="api_key")
     db: str = Field(env="db")
     secret_id: str = Field(env="aws_id")
@@ -17,7 +18,6 @@ class DBCloudConfig(BaseSettings):
         env_file_encoding = 'utf-8'
 
 class AppConfig(BaseModel):
-    
     DESCRIPTION: str = 'API to fetch data from portfolio projects'
     VERSION: float = 1.0
     PORT: int = 8000

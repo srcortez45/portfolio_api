@@ -1,15 +1,20 @@
 from app.utils.settings import cnf
+from app.utils.toolbox import timer
+from app.models.credentials import Session,Client_Secret
+from app.supabase.client import ClientManager
+
+from pydantic.tools import parse_file_as
+from pydantic import HttpUrl
 
 from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-import typing
+from googleapiclient.discovery import build,Resource
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from  google.auth.exceptions import RefreshError
+
 import json
 import os
 import datetime
-import google.oauth2.credentials
-import google.auth.transport.requests
-import google.auth.exceptions
-from googleapiclient.discovery import build,Resource
 
 class ServiceManager():
 
@@ -23,26 +28,30 @@ class ServiceManager():
 
     def get_service(self) -> Resource:
 
-        credentials = self.get_credentials(self.CLIENT_FILE,self.SCOPES) or None
+        credentials = self.get_credentials(self.CLIENT_FILE,self.SCOPES)
 
         service = None
 
         if credentials is None:
             print('no hay credenciales validas')
+
         else:
-            service = self.create_service(self.SERVICE_NAME,self.API_VERSION,credentials)
+            service = self.create_service(self.SERVICE_NAME,
+                                          self.API_VERSION,
+                                          credentials)
             print('service created')
+
         print('fin del flujo')
         return service   
                     
-    def create_service(self,service_name:str,api_version:str, credentials:google.oauth2.credentials):
+    def create_service(self,service_name:str,api_version:str, credentials:Credentials):
         return build(service_name, api_version, credentials)  
     
-    def generate_url(self) -> str:
+    def generate_url(self) -> HttpUrl:
 
         client_file = self.get_client_credentials()
                     
-        flow = Flow.from_client_config(client_file, self.SCOPES)
+        flow = Flow.from_client_config(client_file.dict(), self.SCOPES)
 
         flow.redirect_uri = 'http://localhost:8000/generate-session'
 
@@ -54,7 +63,7 @@ class ServiceManager():
 
         client_file = self.get_client_credentials()
 
-        flow = Flow.from_client_config(client_file, self.SCOPES)
+        flow = Flow.from_client_config(client_file.dict(), self.SCOPES)
 
         flow.redirect_uri = 'http://localhost:8000/generate-session'
 
@@ -64,62 +73,50 @@ class ServiceManager():
 
         credentials = flow.credentials
 
-        session_credentials = {
-                    'token': credentials.token,
-                    'refresh_token': credentials.refresh_token,
-                    'id_token':credentials.id_token,
-                    'token_uri': credentials.token_uri,
-                    'client_id': credentials.client_id,
-                    'client_secret': credentials.client_secret,
-                    'scopes': credentials.scopes,
-                    'expiry':datetime.datetime.strftime(credentials.expiry,'%Y-%m-%d %H:%M:%S')
-                }
+        session_credentials = Session.parse_raw(credentials.to_json())
+                              #parse_obj_as(User, user_dict)
+
+        session_credentials.expiry = credentials.expiry.strftime('%Y-%m-%d %H:%M:%S')
+
         with open(cnf.BASE_PATH +'\\app\\resources\\session.json', 'w') as f: 
-            json.dump(session_credentials, f)
+            json.dump(session_credentials.dict(), f)
             f.close()
-            
+
         return 'session created'
-
-    def validate_credentials(self):
-
-        credentials = self.get_session_credentials()
-
-        if credentials is None:
-            return False         
-                         
-        return True    
     
-    def get_credentials(self):
+    def get_credentials(self) -> Credentials:
             
-            session_credentials = self.get_session_credentials()
-            
-            credentials = google.oauth2.credentials.Credentials(
-                token=session_credentials['token'],
-                refresh_token=session_credentials['refresh_token'],
-                id_token=session_credentials['id_token'],
-                token_uri=session_credentials['token_uri'],
-                client_id=session_credentials['client_id'],
-                client_secret=session_credentials['client_secret'],
-                scopes=session_credentials['scopes'],
-            )
-            
-            expiry = session_credentials['expiry']
-            expiry_datetime = datetime.datetime.strptime(expiry,'%Y-%m-%d %H:%M:%S')
-            credentials.expiry = expiry_datetime
+        session_credentials = self.get_session_credentials()
 
-            try:
+        credentials = Credentials(
+                token=session_credentials.token,
+                refresh_token=session_credentials.refresh_token,
+                id_token=session_credentials.id_token,
+                token_uri=session_credentials.token_uri,
+                client_id=session_credentials.client_id,
+                client_secret=session_credentials.client_secret,
+                scopes=session_credentials.scopes,
+        )
+            
+        expiry = session_credentials.expiry
+        expiry_datetime = datetime.datetime.strptime(expiry,'%Y-%m-%d %H:%M:%S')
+        credentials.expiry = expiry_datetime
 
-                if credentials.valid or credentials.expired:
-                    request = google.auth.transport.requests.Request()
-                    credentials.refresh(request)
+        try:
+
+            if credentials.valid or credentials.expired:
+                request = Request()
+                credentials.refresh(request)
                         
-                return credentials
+            return credentials
 
-            except google.auth.exceptions.RefreshError as e:
-                print('an error occurred while refreshing credentials')
-                open(cnf.BASE_PATH +'\\app\\resources\\session.json', 'w').close()     
+        except RefreshError:
+            print('an error occurred while refreshing credentials')
+            open(cnf.BASE_PATH +'\\app\\resources\\session.json', 'w').close()     
 
+    @timer
     def clear_access(self):
+        
         try:
             open(cnf.BASE_PATH +'\\app\\resources\\session.json', 'w').close()
             return 'clear success'
@@ -127,29 +124,27 @@ class ServiceManager():
             print('an error occurred while clearing credentials')
             print(str(e))
 
-    def get_session_credentials(self):
-        session_credentials = None
-        try:
-            
-            with open(self.SESSION_FILE) as session_file:
-                session_credentials = json.load(session_file)
-                session_file.close()
+    def get_session_credentials(self) -> Session | None:
 
-            return session_credentials
+        try:
+            response = ClientManager().get_session()
+            user_session = Session(**response.data[0])
+            user_session.dict()
+            return parse_file_as(path=self.SESSION_FILE, type_=Session)
             
         except Exception as e:
             print('an error occurred while reading the session credentials')
             print(str(e))
             raise Exception
-    def get_client_credentials(self):
-        client_credentials = None
-        try:
-            
-            with open(self.CLIENT_FILE) as client_temp:
-                client_credentials = json.load(client_temp)
-                client_temp.close()
-            return client_credentials
         
+    def get_client_credentials(self) -> Client_Secret | None:
+
+        try:
+            if os.stat(self.CLIENT_FILE).st_size == 0:
+                return None
+            
+            return parse_file_as(path=self.CLIENT_FILE, type_=Client_Secret)
+            
         except Exception as e:
             print('an error occurred while reading the client credentials')
             print(str(e))

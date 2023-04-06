@@ -1,6 +1,7 @@
 from app.utils.settings import cnf
 import boto3
 class Client:
+    
     def get_connection(self,table_name:str) -> boto3.resource:
         return boto3.resource(cnf.DB_CLOUD_CONFIG.db,
             aws_access_key_id=cnf.DB_CLOUD_CONFIG.secret_id,
