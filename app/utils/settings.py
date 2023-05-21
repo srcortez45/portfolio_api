@@ -34,6 +34,10 @@ class AppConfig(BaseModel):
 
 class GlobalConfig(BaseSettings):
 
+    BASE_PATH:str = os.getcwd()
+
+    HOST: str = Field(env="HOST")
+
     APP_CONFIG: AppConfig = AppConfig()
 
     DB_CLOUD_CONFIG: DBCloudConfig = DBCloudConfig(_env_file='.env', _env_file_encoding='utf-8')
@@ -50,11 +54,7 @@ class DevConfig(GlobalConfig):
 
     TITLE: str = 'PORTFOLIO API - DEV'
 
-    HOST: str = 'localhost'
-
     DEBUG:bool = True
-
-    BASE_PATH:str = os.getcwd()
 
     openapi_url:Optional[str] = '/api/openapi'
 
@@ -69,15 +69,11 @@ class ProdConfig(GlobalConfig):
     """Production configurations."""
     TITLE: str = 'UNOVA API - PROD'
 
-    HOST: str = "0.0.0.0"
-
     DEBUG:bool = False
-
-    BASE_PATH:str = '/usr/share/api-unova'
 
     openapi_url:Optional[str] = '/api/openapi'
 
-    docs_url:Optional[str] = '/unova/documentation'
+    docs_url:Optional[str] = '/api/documentation'
     
     redoc_url:Optional[str] = None
 

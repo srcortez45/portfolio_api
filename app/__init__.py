@@ -1,9 +1,7 @@
 from contextlib import asynccontextmanager
 from app.routers.apis.user.user_api import user_router
 from app.utils.settings import cnf
-
 from app.supabase.client import ClientManager
-
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi import FastAPI, Request, Depends, Response
