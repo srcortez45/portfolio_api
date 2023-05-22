@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.decorator import cache
+from fastapi_cache.coder import JsonCoder
 from redis import asyncio as aioredis
 import time
 
@@ -17,7 +18,7 @@ async def lifespan(app: FastAPI):
     redis = aioredis.from_url( url=cnf.REDIS,
                                encoding="utf8", 
                                decode_responses=True)
-    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache", coder=JsonCoder)
     yield
     await redis.close()
     print('shutdown db session')
