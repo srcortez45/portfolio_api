@@ -4,23 +4,13 @@ from app.utils.settings import cnf
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi import FastAPI, Request
-from fastapi_cache import FastAPICache
-from fastapi_cache.backends.redis import RedisBackend
-from fastapi_cache.decorator import cache
-from fastapi_cache.coder import JsonCoder
-from redis import asyncio as aioredis
 import time
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print('starting db session')
-    redis = aioredis.from_url( url=cnf.REDIS,
-                               encoding="utf8", 
-                               decode_responses=True)
-    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache", coder=JsonCoder)
     yield
-    await redis.close()
     print('shutdown db session')
 
 
@@ -67,7 +57,6 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.get("/", tags=["Root"])
-@cache(expire=180)
 async def read_root():
   return { 
     "message": "Welcome to my notes application, use the /docs route to proceed"
