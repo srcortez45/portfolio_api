@@ -1,40 +1,26 @@
 from contextlib import asynccontextmanager
 from app.routers.apis.user.user_api import user_router
 from app.utils.settings import cnf
-from app.supabase.client import ClientManager
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from fastapi import FastAPI, Request, Depends, Response
+from fastapi import FastAPI, Request
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+from redis import asyncio as aioredis
 import time
-
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the ML model
     print('starting db session')
-
-    db_local = ClientManager().get_client()
-
-    #ClientManager().get_client().auth.set_session()
-
+    redis = aioredis.from_url( url=cnf.REDIS,
+                               encoding="utf8", 
+                               decode_responses=True)
+    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
     yield
-
-    print(db_local.auth.get_session())
-    #print(credentials)
-    
-    #self.get_client().auth.set_session()
-
-    #self.get_client().auth._remove_session()
-
+    await redis.close()
     print('shutdown db session')
-
-def get_db():
-    db = 'session open'
-    try:
-        yield db
-    finally:
-        print('closing connection')
 
 
 def get_application():
@@ -46,10 +32,10 @@ def get_application():
         openapi_tags=cnf.APP_CONFIG.tags_metadata,
         openapi_url = cnf.openapi_url,
         docs_url=cnf.docs_url,
-        lifespan=lifespan,
-        dependencies=[Depends(get_db)]
+        lifespan=lifespan
         )
-    app.include_router(user_router)
+    app.include_router(router=user_router,
+                       prefix='/session')
     return app
 
 app = get_application()
@@ -76,20 +62,11 @@ async def some_middleware(request: Request, call_next):
                             httponly=True)
     return response
 
-@app.middleware("http")
-async def db_session_middleware(request: Request, call_next):
-    response = Response("Internal server error", status_code=500)
-    try:
-        request.state.db = 'value'
-        response = await call_next(request)
-    finally:
-        request.state.db = None
-    return response
-
-
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+
 @app.get("/", tags=["Root"])
+@cache(expire=180)
 async def read_root():
   return { 
     "message": "Welcome to my notes application, use the /docs route to proceed"

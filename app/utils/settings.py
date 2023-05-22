@@ -1,7 +1,7 @@
-import os
-from pydantic import BaseModel,BaseSettings,Field
+from pydantic import BaseModel,BaseSettings, Field
 from typing import Optional
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -38,11 +38,13 @@ class GlobalConfig(BaseSettings):
 
     HOST: str = Field(env="HOST")
 
+    REDIS: str = Field(env="REDIS")
     #OAUTHLIB_TRANSPORT: str = Field(env="OAUTHLIB_TRANSPORT")
 
     APP_CONFIG: AppConfig = AppConfig()
 
-    DB_CLOUD_CONFIG: DBCloudConfig = DBCloudConfig(_env_file='.env', _env_file_encoding='utf-8')
+    DB_CLOUD_CONFIG: DBCloudConfig = DBCloudConfig(_env_file='.env', 
+                                                   _env_file_encoding='utf-8')
 
     ENV_STATE: Optional[str] = Field(None,env="ENV_STATE")
     class Config:
