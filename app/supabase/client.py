@@ -22,13 +22,12 @@ class ClientManager():
                 .table('host_client')\
                 .insert(json.loads(client_host.json()))\
                 .execute()
-            
         return data.data
     
 
     def save_session(self,session:Session):
         data = self.get_client() \
-                   .table("session") \
+                   .table('session') \
                    .insert(json.loads(session.json())) \
                    .execute()
         return data
@@ -54,9 +53,18 @@ class ClientManager():
 
     def get_session(self, id:str) -> Session:
         data = self.get_client() \
-                   .table("session") \
-                   .select("*") \
-                   .eq("id", id) \
+                   .table('session') \
+                   .select('*') \
+                   .eq('id', id) \
                    .limit(1) \
                    .execute()
         return Session(**data.data[0]) if len(data.data) > 0 else Session()
+    
+
+    def delete_session(self, id:str):
+         data = self.get_client() \
+         .table('session') \
+         .delete() \
+         .eq('id', id) \
+         .execute()
+         return data

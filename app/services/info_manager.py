@@ -1,18 +1,26 @@
 from app.config.database import Client
 from app.services.google import ServiceManager
+from app.models.document import Projects
 
-class UserService():
+class InformationalServiceManager():
     
-    def __init__(self):
-        self.client = Client().get_connection('user_information')
 
+    def __init__(self):
+        self.service = ServiceManager().get_service('')
+        #self.client = Client().get_connection('user_information')
+
+
+    def get_proyects(self):
+        document = self.service.documents().get(documentId='').execute()
+        return Projects(**document)
         
+
     def get_user(self):
         user_data = []
         scopes = ['https://www.googleapis.com/auth/documents.readonly']
 
-        service = ServiceManager().get_service('docs','v1',scopes)
-        document = service.documents().get(documentId='').execute()
+        
+        document = self.service.documents().get(documentId='').execute()
         
         content = document.get('body').get('content')
         total = 0

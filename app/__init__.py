@@ -1,17 +1,21 @@
 from contextlib import asynccontextmanager
-from app.routers.apis.user.user_api import user_router
+from app.routers import router_api
 from app.utils.settings import cnf
+from loguru import logger
 from fastapi.middleware.gzip import GZipMiddleware
-from starlette.middleware.sessions import SessionMiddleware
 from fastapi import FastAPI, Request
+from starlette.middleware.sessions import SessionMiddleware
 import time
-
+import sys
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print('starting db session')
+    #logger.remove()
+    #logger.add(sys.stderr, level="INFO")
+    logger.debug("DEBUG MODE")
+    logger.info("STARTING APP")
     yield
-    print('shutdown db session')
+    logger.debug("SHUTDOWN APP")
 
 
 def get_application():
@@ -25,8 +29,8 @@ def get_application():
         docs_url=cnf.docs_url,
         lifespan=lifespan
         )
-    app.include_router(router=user_router,
-                       prefix='/session')
+    app.include_router(prefix='/v1',
+                       router=router_api)
     return app
 
 app = get_application()
@@ -55,8 +59,7 @@ async def some_middleware(request: Request, call_next):
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-
-@app.get("/", tags=["Root"])
+@app.get("/")
 async def read_root():
   return { 
     "message": "Welcome to my notes application, use the /docs route to proceed"

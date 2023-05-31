@@ -23,3 +23,15 @@ async def generate_url_access(request:Request):
 async def create_access(request:Request):
     id = request.session.get("uuid4", None)
     return ServiceManager().session_flow(id, request.url._url)
+
+
+@user_router.get("/refresh-session")
+async def refresh_session(request:Request):
+    id = request.session.get("uuid4", None)
+    return ServiceManager().session_flow(id, request.url._url)
+
+
+@user_router.get("/delete-session")
+async def delete_access(request:Request):
+    id = request.session.get("uuid4", None)
+    return ServiceManager().delete_last_session(id)

@@ -23,12 +23,12 @@ class AppConfig(BaseModel):
     PORT: int = 8000
     tags_metadata = [
         {
-            "name":"user information",
-            "description":"get the user basic information"
+            "name":"google auth",
+            "description":"login from google"
         },
         {
-            "name":"user skills",
-            "description":"get the user skills"
+            "name":"user cv",
+            "description":"get the user information"
         }
     ]
 
