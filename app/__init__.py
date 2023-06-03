@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from app.routers import router_api
+from app.models.loglevel import LogLevel
 from app.utils.settings import cnf
+from app.utils.config import NotificationManager, NotificationState
 from loguru import logger
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi import FastAPI, Request
@@ -10,8 +12,6 @@ import sys
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    #logger.remove()
-    #logger.add(sys.stderr, level="INFO")
     logger.debug("DEBUG MODE")
     logger.info("STARTING APP")
     yield
@@ -19,7 +19,6 @@ async def lifespan(app: FastAPI):
 
 
 def get_application():
-
     app = FastAPI(
         title = cnf.TITLE,
         description = cnf.APP_CONFIG.DESCRIPTION,
@@ -27,13 +26,17 @@ def get_application():
         openapi_tags=cnf.APP_CONFIG.tags_metadata,
         openapi_url = cnf.openapi_url,
         docs_url=cnf.docs_url,
-        lifespan=lifespan
-        )
+        lifespan=lifespan)
     app.include_router(prefix='/v1',
                        router=router_api)
+    notifier = NotificationManager(app)
+    app.state._state["notifier_manager"] = notifier
+    app.state._state["notifier_state"] = NotificationState(notifier)
     return app
 
+
 app = get_application()
+
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
@@ -44,23 +47,23 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-
-app.add_middleware(SessionMiddleware, secret_key="some-random-string", max_age=None)
-
-@app.middleware("http")
-async def some_middleware(request: Request, call_next):
-    response = await call_next(request)
-    session = request.cookies.get('session')
-    if session:
-        response.set_cookie(key='session',
-                            value=request.cookies.get('session'),
-                            httponly=True)
-    return response
-
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
 @app.get("/")
 async def read_root():
+  logger.debug("accesing docs")
   return { 
     "message": "Welcome to my notes application, use the /docs route to proceed"
    }
+
+@app.put("/api/log/{level}")
+async def change_log_level(level,request:Request):
+    logging_level = LogLevel.set_log_level(level)
+    logger.remove()
+    logger.add(sys.stderr, level=logging_level)
+    request.app.state.mode = logging_level
+    notifier:NotificationManager = request.app.state._state.get("notifier_manager")
+    notifier.log_level = logging_level
+    return {"level":logging_level}
+
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(SessionMiddleware, secret_key="secret_key")

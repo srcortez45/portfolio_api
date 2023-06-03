@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from app.services.google import ServiceManager
 from app.models.user import ClientHost
+from loguru import logger
 import uuid
 
 user_router = APIRouter()
@@ -9,6 +10,7 @@ user_router = APIRouter()
 
 @user_router.get("/generate-url")
 async def generate_url_access(request:Request):
+    logger.debug("Generating url access")
     request.session["uuid4"] = request.session.get("uuid4", str(uuid.uuid4()))
     #client_ip = request.headers.get("ip-address", None)
     client_ip = request.client.host
@@ -16,6 +18,7 @@ async def generate_url_access(request:Request):
                         ip = client_ip,
                         base_url = str(request.base_url))
     response = ServiceManager().generate_url(client)
+    logger.debug("ServiceManager.generated_url")
     return JSONResponse(response)
 
 

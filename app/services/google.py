@@ -4,15 +4,14 @@ from app.models.user import ClientHost
 from app.models.request import SessionRequest
 from app.models.response import GenerateURLResponse, SessionResponse
 from app.supabase.client import ClientManager
-from pydantic.tools import parse_file_as
+from functools import lru_cache
 from pydantic import HttpUrl
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build, Resource
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
-from  google.auth.exceptions import RefreshError
+from google.auth.exceptions import RefreshError
 from loguru import logger
-import os
 import datetime
 import requests
 
@@ -20,7 +19,6 @@ class ServiceManager():
 
 
     def __init__(self):
-        #os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
         self.CLIENT_FILE = cnf.BASE_PATH +'/app/resources/token.json'
         self.SCOPES = ['https://www.googleapis.com/auth/documents.readonly']
         self.SERVICE_NAME = 'docs'
@@ -31,17 +29,20 @@ class ServiceManager():
         credentials = self.get_last_session(id)
         service = None
         if credentials is None:
-            logger.error("no hay credenciales validas")
+            logger.error("not valid credentials")
         else:
             service = self.create_service(self.SERVICE_NAME,
                                           self.API_VERSION,
                                           credentials)
             logger.info("created service")
-        logger.info("fin del flujo")
+        logger.info("end of the flow")
         return service
     
                    
-    def create_service(self, service_name:str, api_version:str, credentials:Credentials):
+    def create_service(self,
+                        service_name:str, 
+                        api_version:str,
+                        credentials:Credentials):
         return build(serviceName=service_name,
                      version=api_version,
                      credentials=credentials)  
@@ -68,7 +69,8 @@ class ServiceManager():
         session_request = SessionRequest(id=id, url_response=url)
         has_active_session = self.validate_session(session_request.id)
         if has_active_session:
-            logger.debug(f"the client {session_request.id} has active session:{has_active_session}")
+            logger.debug(f"the client {session_request.id} has active session: \
+                         {has_active_session}")
             return SessionResponse(session_type='session', message='active_session')
         has_temp_auth = self.validate_temp_auth(session_request.id)
         if has_temp_auth:
@@ -85,7 +87,7 @@ class ServiceManager():
         authorization_response = url
         try:
             flow.fetch_token(authorization_response=authorization_response)
-        except Exception as e:
+        except Exception:
             logger.error("error fetching token")
             return   
         credentials = flow.credentials
@@ -132,7 +134,11 @@ class ServiceManager():
             headers = {'content-type': 'application/x-www-form-urlencoded'})
         logger.debug(f"the delete session was {result.status_code}")
 
-    def refresh_credentials(self, credentials:Credentials) -> Credentials:
+    def refresh_credentials(self, id) -> Credentials:
+        is_session_active = self.validate_session(id)
+        if not is_session_active:
+            logger.error("no active session")
+        credentials = self.get_last_session(id)
         try:
             if not credentials.valid or credentials.expired:
                 logger.debug("refresh credencials")
@@ -152,11 +158,18 @@ class ServiceManager():
         client_host:ClientHost = ClientManager().get_temp_auth(id)
         return True if client_host.id == id else False       
     
-
+    @lru_cache
     def get_client_credentials(self) -> Client_Secret:
         try:
-            return parse_file_as(path=self.CLIENT_FILE, type_=Client_Secret)
-        except Exception as e:
-            print('an error occurred while reading the client credentials')
-            print(str(e))
+            url = cnf.DB_CLOUD_CONFIG.api_config
+            headers = {'Authorization': 
+                       f'Bearer {cnf.DB_CLOUD_CONFIG.api_token_config}'}
+            response = requests.get(url=url, headers=headers)
+            if response.status_code == 200:
+                return Client_Secret(web=response.json().get('value'))
+            else:
+                logger.error("access token expire")
+                return
+        except Exception:
+            logger.error("an error occurred while reading the client credentials")
             raise Exception
